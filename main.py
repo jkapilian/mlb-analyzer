@@ -18,8 +18,8 @@ def build_analysis(args):
 		for row in reader:
 			try:
 				games += 1
-				gameId = get_game_id(row)
-				add_game(gameId, finalObj)
+				gameId, otherGameId = get_game_id(row)
+				add_game(gameId, otherGameId, finalObj)
 			except Exception as e:
 				raise Exception(f"Error adding game {row}: {e}")
 		try:
@@ -33,18 +33,22 @@ def get_game_id(row):
 	team_code = constants.teamCodes[home_team]
 	games = statsapi.schedule(date=date, team=team_code)
 	if len(games) == 1:
-		return games[0]["game_id"]
+		return games[0]["game_id"], None
 	else:
 		if len(row) > 2:
+			gameId = None
+			otherGameId=  None
 			gameNum = row[2]
 			for game in games:
 				if game["game_num"] == int(gameNum):
-					return game["game_id"]
+					gameId = game["game_id"]
+				else:
+					otherGameId = game["game_id"]
+			return gameId, otherGameId
 		else:
 			raise Exception("Doubleheaders must have a third column specifying which game was attended")
-	raise Exception(f"No game found for {home_team} on {date}")
 
-def add_game(gameId, finalObj):
+def add_game(gameId, otherGameId, finalObj):
 	boxscore = statsapi.boxscore_data(gameId)
 	for player in boxscore["home"]["players"]:
 		playerObj = boxscore["home"]["players"][player]
@@ -55,7 +59,9 @@ def add_game(gameId, finalObj):
 	try:
 		finalObj["attendance"][gameId] = int(get_field(boxscore, "Att").replace(",", ""))
 	except:
-		finalObj["attendance"][gameId] = 0
+		# for straight doubleheaders, only one game's attendance is included
+		otherDoubleHeaderBoxScore = statsapi.boxscore_data(otherGameId)
+		finalObj["attendance"][gameId] = int(get_field(otherDoubleHeaderBoxScore, "Att").replace(",", ""))
 	time = get_field(boxscore, "T").split(":")
 	finalObj["gameTimes"][gameId] = 60 * int(time[0]) + int(time[1][0:2])
 	
