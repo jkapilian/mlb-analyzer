@@ -1,5 +1,5 @@
 # MLB Analyzer
-Get more detailed information than what the MLB Ballpark app provides!
+Get more detailed information than what the MLB Ballpark app provides
 
 ## How to Run
 * Create a CSV with the following columns:
@@ -61,3 +61,6 @@ April 22, 2007 ATL vs. NYM: 3:21
 June 15, 2008 TEX vs. NYM: 3:23
 June 21, 2009 TB vs. NYM: 3:55
 ```
+
+## Acknowledgements
+Makes use of the [MLB-StatsAPI](https://github.com/toddrob99/MLB-StatsAPI) Python package.
