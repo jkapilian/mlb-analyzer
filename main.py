@@ -16,10 +16,16 @@ def build_analysis(args):
 		reader = csv.reader(csvfile)
 		games = 0
 		for row in reader:
-			games += 1
-			gameId = get_game_id(row)
-			add_game(gameId, finalObj)
-		process_final(finalObj, games)
+			try:
+				games += 1
+				gameId = get_game_id(row)
+				add_game(gameId, finalObj)
+			except Exception as e:
+				raise Exception(f"Error adding game {row}: {e}")
+		try:
+			process_final(finalObj, games)
+		except Exception as e:
+			raise Exception(f"Error printing summary: {e}")
 
 def get_game_id(row):
 	home_team = row[0]
@@ -32,11 +38,11 @@ def get_game_id(row):
 		if len(row) > 2:
 			gameNum = row[2]
 			for game in games:
-				if game["game_num"] == gameNum:
+				if game["game_num"] == int(gameNum):
 					return game["game_id"]
 		else:
 			raise Exception("Doubleheaders must have a third column specifying which game was attended")
-	raise Exception(f"No game found for {team_code} on {date}")
+	raise Exception(f"No game found for {home_team} on {date}")
 
 def add_game(gameId, finalObj):
 	boxscore = statsapi.boxscore_data(gameId)
@@ -46,9 +52,12 @@ def add_game(gameId, finalObj):
 	for player in boxscore["away"]["players"]:
 		playerObj = boxscore["away"]["players"][player]
 		process_player(playerObj, finalObj)
-	finalObj["attendance"][gameId] = int(get_field(boxscore, "Att").replace(",", ""))
+	try:
+		finalObj["attendance"][gameId] = int(get_field(boxscore, "Att").replace(",", ""))
+	except:
+		finalObj["attendance"][gameId] = 0
 	time = get_field(boxscore, "T").split(":")
-	finalObj["gameTimes"][gameId] = 60 * int(time[0]) + int(time[1])
+	finalObj["gameTimes"][gameId] = 60 * int(time[0]) + int(time[1][0:2])
 	
 
 def process_player(playerObj, finalObj):
@@ -98,13 +107,16 @@ def process_final(finalObj, games):
 	
 
 def process_stat(finalObj, stat, label, process_item, most=True):
-	top = sorted(finalObj[stat].items(), reverse=most)
-	final_freq = top[4][1] if len(top) >= 5 else 0
+	top = sorted(finalObj[stat].items(), key=get_val, reverse=most)
+	final_freq = top[4][1] if len(top) >= 5 else (0 if most else float("inf"))
 	print(label)
 	for item in top:
-		if item[1] < final_freq:
+		if (most and item[1] < final_freq) or (not most and item[1] > final_freq):
 			break
 		process_item(item, stat == "gameTimes")
+
+def get_val(item):
+	return item[1]
 
 def get_player_name(player, _):
 	playerObj = statsapi.player_stat_data(player[0])
@@ -119,7 +131,7 @@ def get_game_info(game, isTime):
 	if isTime:
 		hour = int(game[1]/60)
 		minute = game[1] - 60 * hour
-		value = f"{hour}:{minute}"
+		value = f"{hour}:{'%02d' % minute}"
 	print(f"{dateString} {away} vs. {home}: {value}")
 
 if __name__ == "__main__":
