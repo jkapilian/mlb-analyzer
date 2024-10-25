@@ -6,7 +6,7 @@ Get more detailed information than what the MLB Ballpark app provides
 `HomeTeam,Date,DoubleheaderGameNumber(if applicable)`
 * Run the following
 `pip install -r requirements.txt`
-`python main.py -f example.csv`
+`python main.py -d example.csv`
 * Example output:
 ```
 SUMMARY:

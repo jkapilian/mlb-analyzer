@@ -2,6 +2,7 @@ import statsapi
 import argparse
 import csv
 import constants
+import json
 
 def build_analysis(args):
 	finalObj = {
@@ -12,18 +13,27 @@ def build_analysis(args):
 		"gameTimes": {}
 	}
 
-	with open(args.file) as csvfile:
+	boxscores = {}
+
+	if args.input:
+		with open(args.input, "r") as inputfile:
+			boxscores = json.load(inputfile)
+
+	with open(args.data) as csvfile:
 		reader = csv.reader(csvfile)
 		games = 0
 		for row in reader:
 			try:
 				games += 1
 				gameId, otherGameId = get_game_id(row)
-				add_game(gameId, otherGameId, finalObj)
+				add_game(gameId, otherGameId, finalObj, boxscores)
 			except Exception as e:
 				raise Exception(f"Error adding game {row}: {e}")
 		try:
-			process_final(finalObj, games)
+			if args.output:
+				with open(args.output, "w") as outputfile:
+					outputfile.write(json.dumps(boxscores))
+			process_final(finalObj, games, boxscores)
 		except Exception as e:
 			raise Exception(f"Error printing summary: {e}")
 
@@ -48,8 +58,8 @@ def get_game_id(row):
 		else:
 			raise Exception("Doubleheaders must have a third column specifying which game was attended")
 
-def add_game(gameId, otherGameId, finalObj):
-	boxscore = statsapi.boxscore_data(gameId)
+def add_game(gameId, otherGameId, finalObj, boxscores):
+	boxscore = get_boxscore(gameId, boxscores)
 	for player in boxscore["home"]["players"]:
 		playerObj = boxscore["home"]["players"][player]
 		process_player(playerObj, finalObj)
@@ -60,11 +70,16 @@ def add_game(gameId, otherGameId, finalObj):
 		finalObj["attendance"][gameId] = int(get_field(boxscore, "Att").replace(",", ""))
 	except:
 		# for straight doubleheaders, only one game's attendance is included
-		otherDoubleHeaderBoxScore = statsapi.boxscore_data(otherGameId)
+		otherDoubleHeaderBoxScore = get_boxscore(otherGameId, boxscores)
 		finalObj["attendance"][gameId] = int(get_field(otherDoubleHeaderBoxScore, "Att").replace(",", ""))
 	time = get_field(boxscore, "T").split(":")
 	finalObj["gameTimes"][gameId] = 60 * int(time[0]) + int(time[1][0:2])
 	
+
+def get_boxscore(gameId, boxscores):
+	if gameId not in boxscores:
+		boxscores[gameId] = statsapi.boxscore_data(gameId)
+	return boxscores[gameId]
 
 def process_player(playerObj, finalObj):
 	id = playerObj["person"]["id"]
@@ -96,40 +111,40 @@ def get_field(boxscore, field):
 			return item["value"][:-1]
 	return ""
 
-def process_final(finalObj, games):
+def process_final(finalObj, games, boxscores):
 	print("SUMMARY:\n--------------------------------------\n")
 	print(f'Total players seen: {len(finalObj["players"])}')
-	process_stat(finalObj, "players", "Most seen players: ", get_player_name)
+	process_stat(finalObj, boxscores, "players", "Most seen players: ", get_player_name)
 	print(f'\nYou\'ve seen {len(finalObj["homeRuns"])} players hit {sum(finalObj["homeRuns"].values())} home runs')
-	process_stat(finalObj, "homeRuns", "Biggest power hitters: ", get_player_name)
+	process_stat(finalObj, boxscores, "homeRuns", "Biggest power hitters: ", get_player_name)
 	print(f'\nYou\'ve seen {len(finalObj["triples"])} players hit {sum(finalObj["triples"].values())} triples')
-	process_stat(finalObj, "triples", "Fastest around the basepaths: ", get_player_name)
+	process_stat(finalObj, boxscores, "triples", "Fastest around the basepaths: ", get_player_name)
 
 	print(f'\nYou\'ve seen {games} games over the years!')
-	process_stat(finalObj, "attendance", "Most attended games: ", get_game_info)
-	process_stat(finalObj, "attendance", "Least attended games: ", get_game_info, False)
-	process_stat(finalObj, "gameTimes", "Longest games attended: ", get_game_info)
-	process_stat(finalObj, "gameTimes", "Shortest games attended: ", get_game_info, False)
+	process_stat(finalObj, boxscores, "attendance", "Most attended games: ", get_game_info)
+	process_stat(finalObj, boxscores, "attendance", "Least attended games: ", get_game_info, False)
+	process_stat(finalObj, boxscores, "gameTimes", "Longest games attended: ", get_game_info)
+	process_stat(finalObj, boxscores, "gameTimes", "Shortest games attended: ", get_game_info, False)
 	
 
-def process_stat(finalObj, stat, label, process_item, most=True):
+def process_stat(finalObj, boxscores, stat, label, process_item, most=True):
 	top = sorted(finalObj[stat].items(), key=get_val, reverse=most)
 	final_freq = top[4][1] if len(top) >= 5 else (0 if most else float("inf"))
 	print(label)
 	for item in top:
 		if (most and item[1] < final_freq) or (not most and item[1] > final_freq):
 			break
-		process_item(item, stat == "gameTimes")
+		process_item(item, stat == "gameTimes", boxscores)
 
 def get_val(item):
 	return item[1]
 
-def get_player_name(player, _):
+def get_player_name(player, _, __):
 	playerObj = statsapi.player_stat_data(player[0])
 	print(f"{playerObj['first_name']} {playerObj['last_name']}: {player[1]}")
 
-def get_game_info(game, isTime):
-	boxscore = statsapi.boxscore_data(game[0])
+def get_game_info(game, isTime, boxscores):
+	boxscore = get_boxscore(game[0], boxscores)
 	dateString = boxscore["gameBoxInfo"][-1]["label"]
 	away = boxscore["teamInfo"]["away"]["abbreviation"]
 	home = boxscore["teamInfo"]["home"]["abbreviation"]
@@ -142,7 +157,9 @@ def get_game_info(game, isTime):
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="MLB Analyzer")
-	parser.add_argument('-f', '--file', help="CSV of Attendance Data", required=True)
+	parser.add_argument('-d', '--data', help="CSV of Attendance Data", required=True)
+	parser.add_argument('-i', '--input', help="CSV of previously analyzed boxscores")
+	parser.add_argument('-o', '--output', help="CSV of analyzed boxscores")
 	parser.add_argument('-y', '--year', nargs='+', default=[], help="Years Highlight (not yet implemented)")
 	args = parser.parse_args()
 	build_analysis(args)
