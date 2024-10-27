@@ -12,7 +12,9 @@ def build_analysis(args):
 		"gameTimes": {},
 		"gameTimes9Innings": {},
 		"shortGames": {},
-		"extraInnings": {}
+		"extraInnings": {},
+		"venues": {},
+		"teams": {}
 	}
 
 	cacheManager = cache_manager.CacheManager(args.input)
@@ -41,6 +43,7 @@ def add_game(gameId, otherGameId, finalObj, cacheManager):
 	for player in boxscore["away"]["players"]:
 		playerObj = boxscore["away"]["players"][player]
 		process_player(playerObj, finalObj)
+
 	try:
 		finalObj["attendance"][gameId] = {
 			"val": int(get_field(boxscore, "Att").replace(",", ""))
@@ -51,11 +54,13 @@ def add_game(gameId, otherGameId, finalObj, cacheManager):
 		finalObj["attendance"][gameId] = {
 			"val": int(get_field(otherDoubleHeaderBoxScore, "Att").replace(",", ""))
 		}
+
 	time = get_field(boxscore, "T").split(":")
 	timeInMinutes = 60 * int(time[0]) + int(time[1][0:2])
 	finalObj["gameTimes"][gameId] = {
 		"val": timeInMinutes
 	}
+
 	innings = int(float(boxscore["home"]["teamStats"]["pitching"]["inningsPitched"]))
 	if innings == 9:
 		finalObj["gameTimes9Innings"][gameId] = {
@@ -69,7 +74,40 @@ def add_game(gameId, otherGameId, finalObj, cacheManager):
 		finalObj["extraInnings"][gameId] = {
 			"val": innings
 		}
-	
+
+	venue = get_field(boxscore, "Venue")
+	if venue in finalObj["venues"]:
+		finalObj["venues"][venue]["val"] += 1
+	else:
+		finalObj["venues"][venue] = {
+			"val": 1
+		}
+
+	homeTeamWon = boxscore["home"]["teamStats"]["batting"]["runs"] > boxscore["away"]["teamStats"]["batting"]["runs"]
+	homeTeamId = boxscore["home"]["team"]["id"]
+	homeAttribute = "homeWins" if homeTeamWon else "homeLosses"
+	awayTeamId = boxscore["away"]["team"]["id"]
+	awayAttribute = "awayLosses" if homeTeamWon else "awayWins"
+	if homeTeamId not in finalObj["teams"]:
+		finalObj["teams"][homeTeamId] = {
+			"val": 0,
+			"homeWins": 0,
+			"homeLosses": 0,
+			"awayWins": 0,
+			"awayLosses": 0
+		}
+	if awayTeamId not in finalObj["teams"]:
+		finalObj["teams"][awayTeamId] = {
+			"val": 0,
+			"homeWins": 0,
+			"homeLosses": 0,
+			"awayWins": 0,
+			"awayLosses": 0
+		}
+	finalObj["teams"][homeTeamId][homeAttribute] += 1
+	finalObj["teams"][homeTeamId]["val"] += 1
+	finalObj["teams"][awayTeamId][awayAttribute] += 1
+	finalObj["teams"][awayTeamId]["val"] += 1
 
 def process_player(playerObj, finalObj):
 	id = playerObj["person"]["id"]
@@ -132,6 +170,8 @@ def process_final(finalObj, games, cacheManager):
 	process_stat(finalObj, cacheManager, "gameTimes9Innings", "Shortest 9-inning games attended: ", get_game_info, False)
 	process_stat(finalObj, cacheManager, "extraInnings", "Longest extra inning games (innings): ", get_game_info)
 	process_stat(finalObj, cacheManager, "shortGames", "Shortest games (innings): ", get_game_info, False)
+	process_stat(finalObj, cacheManager, "venues", "Most attended stadiums: ", get_venue_info)
+	process_stat(finalObj, cacheManager, "teams", "Most seen teams: ", get_team_info)
 
 def process_stat(finalObj, cacheManager, stat, label, process_item, most=True):
 	top = sorted(finalObj[stat].items(), key=get_val, reverse=most)
@@ -161,6 +201,21 @@ def get_game_info(game, isTime, cacheManager):
 		minute = value - 60 * hour
 		value = f"{hour}:{'%02d' % minute}"
 	print(f"{dateString} {away} vs. {home}: {value}")
+
+def get_venue_info(venue, _, __):
+	print(f"{venue[0]}: {get_val(venue)}")
+
+def get_team_info(team, _, __):
+	team_code = constants.teamCodeReverseLookup[team[0]]
+	team_obj = team[1]
+	homeWins = team_obj["homeWins"]
+	homeLosses = team_obj["homeLosses"]
+	awayWins = team_obj["awayWins"]
+	awayLosses = team_obj["awayLosses"]
+	home_record = f"{homeWins}-{homeLosses}"
+	away_record = f"{awayWins}-{awayLosses}"
+	total_record = f"{homeWins+awayWins}-{homeLosses+awayLosses}"
+	print(f"{team_code}: {home_record} Home, {away_record} Away ({total_record} Total; {get_val(team)} Games)")
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="MLB Analyzer")
