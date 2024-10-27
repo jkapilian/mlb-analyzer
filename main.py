@@ -9,7 +9,10 @@ def build_analysis(args):
 		"homeRuns": {},
 		"triples": {},
 		"attendance": {},
-		"gameTimes": {}
+		"gameTimes": {},
+		"gameTimes9Innings": {},
+		"shortGames": {},
+		"extraInnings": {}
 	}
 
 	cacheManager = cache_manager.CacheManager(args.input)
@@ -25,8 +28,8 @@ def build_analysis(args):
 			except Exception as e:
 				raise Exception(f"Error adding game {row}: {e}")
 		try:
-			cacheManager.export_cache(args.output)
 			process_final(finalObj, games, cacheManager)
+			cacheManager.export_cache(args.output)
 		except Exception as e:
 			raise Exception(f"Error printing summary: {e}")
 
@@ -49,9 +52,23 @@ def add_game(gameId, otherGameId, finalObj, cacheManager):
 			"val": int(get_field(otherDoubleHeaderBoxScore, "Att").replace(",", ""))
 		}
 	time = get_field(boxscore, "T").split(":")
+	timeInMinutes = 60 * int(time[0]) + int(time[1][0:2])
 	finalObj["gameTimes"][gameId] = {
-		"val": 60 * int(time[0]) + int(time[1][0:2])
+		"val": timeInMinutes
 	}
+	innings = int(float(boxscore["home"]["teamStats"]["pitching"]["inningsPitched"]))
+	if innings == 9:
+		finalObj["gameTimes9Innings"][gameId] = {
+			"val": timeInMinutes
+		}
+	elif innings < 9:
+		finalObj["shortGames"][gameId] = {
+			"val": innings
+		}
+	else:
+		finalObj["extraInnings"][gameId] = {
+			"val": innings
+		}
 	
 
 def process_player(playerObj, finalObj):
@@ -111,7 +128,10 @@ def process_final(finalObj, games, cacheManager):
 	process_stat(finalObj, cacheManager, "attendance", "Least attended games: ", get_game_info, False)
 	process_stat(finalObj, cacheManager, "gameTimes", "Longest games attended: ", get_game_info)
 	process_stat(finalObj, cacheManager, "gameTimes", "Shortest games attended: ", get_game_info, False)
-	
+	process_stat(finalObj, cacheManager, "gameTimes9Innings", "Longest 9-inning games attended: ", get_game_info)
+	process_stat(finalObj, cacheManager, "gameTimes9Innings", "Shortest 9-inning games attended: ", get_game_info, False)
+	process_stat(finalObj, cacheManager, "extraInnings", "Longest extra inning games (innings): ", get_game_info)
+	process_stat(finalObj, cacheManager, "shortGames", "Shortest games (innings): ", get_game_info, False)
 
 def process_stat(finalObj, cacheManager, stat, label, process_item, most=True):
 	top = sorted(finalObj[stat].items(), key=get_val, reverse=most)
@@ -120,7 +140,7 @@ def process_stat(finalObj, cacheManager, stat, label, process_item, most=True):
 	for item in top:
 		if (most and get_val(item) < final_freq) or (not most and get_val(item) > final_freq):
 			break
-		process_item(item, stat == "gameTimes", cacheManager)
+		process_item(item, "gameTimes" in stat, cacheManager)
 
 def get_val(item):
 	return item[1]["val"]
