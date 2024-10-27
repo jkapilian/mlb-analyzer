@@ -1,8 +1,7 @@
-import statsapi
 import argparse
 import csv
 import constants
-import json
+import cache_manager
 
 def build_analysis(args):
 	finalObj = {
@@ -13,11 +12,7 @@ def build_analysis(args):
 		"gameTimes": {}
 	}
 
-	boxscores = {}
-
-	if args.input:
-		with open(args.input, "r") as inputfile:
-			boxscores = json.load(inputfile)
+	cacheManager = cache_manager.CacheManager(args.input)
 
 	with open(args.data) as csvfile:
 		reader = csv.reader(csvfile)
@@ -25,41 +20,18 @@ def build_analysis(args):
 		for row in reader:
 			try:
 				games += 1
-				gameId, otherGameId = get_game_id(row)
-				add_game(gameId, otherGameId, finalObj, boxscores)
+				gameId, otherGameId = cacheManager.get_game_id(row)
+				add_game(gameId, otherGameId, finalObj, cacheManager)
 			except Exception as e:
 				raise Exception(f"Error adding game {row}: {e}")
 		try:
-			if args.output:
-				with open(args.output, "w") as outputfile:
-					outputfile.write(json.dumps(boxscores))
-			process_final(finalObj, games, boxscores)
+			cacheManager.export_cache(args.output)
+			process_final(finalObj, games, cacheManager)
 		except Exception as e:
 			raise Exception(f"Error printing summary: {e}")
 
-def get_game_id(row):
-	home_team = row[0]
-	date = row[1]
-	team_code = constants.teamCodes[home_team]
-	games = statsapi.schedule(date=date, team=team_code)
-	if len(games) == 1:
-		return games[0]["game_id"], None
-	else:
-		if len(row) > 2:
-			gameId = None
-			otherGameId=  None
-			gameNum = row[2]
-			for game in games:
-				if game["game_num"] == int(gameNum):
-					gameId = game["game_id"]
-				else:
-					otherGameId = game["game_id"]
-			return gameId, otherGameId
-		else:
-			raise Exception("Doubleheaders must have a third column specifying which game was attended")
-
-def add_game(gameId, otherGameId, finalObj, boxscores):
-	boxscore = get_boxscore(gameId, boxscores)
+def add_game(gameId, otherGameId, finalObj, cacheManager):
+	boxscore = cacheManager.get_boxscore(gameId)
 	for player in boxscore["home"]["players"]:
 		playerObj = boxscore["home"]["players"][player]
 		process_player(playerObj, finalObj)
@@ -72,7 +44,7 @@ def add_game(gameId, otherGameId, finalObj, boxscores):
 		}
 	except:
 		# for straight doubleheaders, only one game's attendance is included
-		otherDoubleHeaderBoxScore = get_boxscore(otherGameId, boxscores)
+		otherDoubleHeaderBoxScore = cacheManager.get_boxscore(otherGameId)
 		finalObj["attendance"][gameId] = {
 			"val": int(get_field(otherDoubleHeaderBoxScore, "Att").replace(",", ""))
 		}
@@ -81,11 +53,6 @@ def add_game(gameId, otherGameId, finalObj, boxscores):
 		"val": 60 * int(time[0]) + int(time[1][0:2])
 	}
 	
-
-def get_boxscore(gameId, boxscores):
-	if gameId not in boxscores:
-		boxscores[gameId] = statsapi.boxscore_data(gameId)
-	return boxscores[gameId]
 
 def process_player(playerObj, finalObj):
 	id = playerObj["person"]["id"]
@@ -130,41 +97,41 @@ def get_field(boxscore, field):
 			return item["value"][:-1]
 	return ""
 
-def process_final(finalObj, games, boxscores):
+def process_final(finalObj, games, cacheManager):
 	print("SUMMARY:\n--------------------------------------\n")
 	print(f'Total players seen: {len(finalObj["players"])}')
-	process_stat(finalObj, boxscores, "players", "Most seen players: ", get_player_name)
+	process_stat(finalObj, cacheManager, "players", "Most seen players: ", get_player_name)
 	print(f'\nYou\'ve seen {len(finalObj["homeRuns"])} players hit {sum(player["val"] for player in finalObj["homeRuns"].values())} home runs')
-	process_stat(finalObj, boxscores, "homeRuns", "Biggest power hitters: ", get_player_name)
+	process_stat(finalObj, cacheManager, "homeRuns", "Biggest power hitters: ", get_player_name)
 	print(f'\nYou\'ve seen {len(finalObj["triples"])} players hit {sum(player["val"] for player in finalObj["triples"].values())} triples')
-	process_stat(finalObj, boxscores, "triples", "Fastest around the basepaths: ", get_player_name)
+	process_stat(finalObj, cacheManager, "triples", "Fastest around the basepaths: ", get_player_name)
 
 	print(f'\nYou\'ve seen {games} games over the years!')
-	process_stat(finalObj, boxscores, "attendance", "Most attended games: ", get_game_info)
-	process_stat(finalObj, boxscores, "attendance", "Least attended games: ", get_game_info, False)
-	process_stat(finalObj, boxscores, "gameTimes", "Longest games attended: ", get_game_info)
-	process_stat(finalObj, boxscores, "gameTimes", "Shortest games attended: ", get_game_info, False)
+	process_stat(finalObj, cacheManager, "attendance", "Most attended games: ", get_game_info)
+	process_stat(finalObj, cacheManager, "attendance", "Least attended games: ", get_game_info, False)
+	process_stat(finalObj, cacheManager, "gameTimes", "Longest games attended: ", get_game_info)
+	process_stat(finalObj, cacheManager, "gameTimes", "Shortest games attended: ", get_game_info, False)
 	
 
-def process_stat(finalObj, boxscores, stat, label, process_item, most=True):
+def process_stat(finalObj, cacheManager, stat, label, process_item, most=True):
 	top = sorted(finalObj[stat].items(), key=get_val, reverse=most)
 	final_freq = get_val(top[4]) if len(top) >= 5 else (0 if most else float("inf"))
 	print(label)
 	for item in top:
 		if (most and get_val(item) < final_freq) or (not most and get_val(item) > final_freq):
 			break
-		process_item(item, stat == "gameTimes", boxscores)
+		process_item(item, stat == "gameTimes", cacheManager)
 
 def get_val(item):
 	return item[1]["val"]
 
-def get_player_name(player, _, __):
-	playerObj = statsapi.player_stat_data(player[0])
+def get_player_name(player, _, cacheManager):
+	playerObj = cacheManager.get_player(player[0])
 	team_print = ", ".join(player[1]['teams'])
 	print(f"{playerObj['first_name']} {playerObj['last_name']}: {get_val(player)} ({team_print})")
 
-def get_game_info(game, isTime, boxscores):
-	boxscore = get_boxscore(game[0], boxscores)
+def get_game_info(game, isTime, cacheManager):
+	boxscore = cacheManager.get_boxscore(game[0])
 	dateString = boxscore["gameBoxInfo"][-1]["label"]
 	away = boxscore["teamInfo"]["away"]["abbreviation"]
 	home = boxscore["teamInfo"]["home"]["abbreviation"]
