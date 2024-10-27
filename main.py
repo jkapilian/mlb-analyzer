@@ -67,13 +67,19 @@ def add_game(gameId, otherGameId, finalObj, boxscores):
 		playerObj = boxscore["away"]["players"][player]
 		process_player(playerObj, finalObj)
 	try:
-		finalObj["attendance"][gameId] = int(get_field(boxscore, "Att").replace(",", ""))
+		finalObj["attendance"][gameId] = {
+			"val": int(get_field(boxscore, "Att").replace(",", ""))
+		}
 	except:
 		# for straight doubleheaders, only one game's attendance is included
 		otherDoubleHeaderBoxScore = get_boxscore(otherGameId, boxscores)
-		finalObj["attendance"][gameId] = int(get_field(otherDoubleHeaderBoxScore, "Att").replace(",", ""))
+		finalObj["attendance"][gameId] = {
+			"val": int(get_field(otherDoubleHeaderBoxScore, "Att").replace(",", ""))
+		}
 	time = get_field(boxscore, "T").split(":")
-	finalObj["gameTimes"][gameId] = 60 * int(time[0]) + int(time[1][0:2])
+	finalObj["gameTimes"][gameId] = {
+		"val": 60 * int(time[0]) + int(time[1][0:2])
+	}
 	
 
 def get_boxscore(gameId, boxscores):
@@ -83,27 +89,40 @@ def get_boxscore(gameId, boxscores):
 
 def process_player(playerObj, finalObj):
 	id = playerObj["person"]["id"]
+	team = constants.teamCodeReverseLookup[playerObj["parentTeamId"]] if "parentTeamId" in playerObj else "Unknown"
 	played = playerObj["stats"]["batting"] != {} or playerObj["stats"]["pitching"]
 	homeRuns = playerObj["stats"]["batting"]["homeRuns"] if "homeRuns" in playerObj["stats"]["batting"] else 0
 	triples = playerObj["stats"]["batting"]["triples"] if "triples" in playerObj["stats"]["batting"] else 0
 	
 	if played:
 		if id in finalObj["players"]:
-			finalObj["players"][id] += 1
+			finalObj["players"][id]["val"] += 1
+			finalObj["players"][id]["teams"].add(team)
 		else:
-			finalObj["players"][id] = 1
+			finalObj["players"][id] = {
+				"val": 1,
+				"teams": {team}
+			}
 
 	if homeRuns > 0:
 		if id in finalObj["homeRuns"]:
-			finalObj["homeRuns"][id] += homeRuns
+			finalObj["homeRuns"][id]["val"] += homeRuns
+			finalObj["homeRuns"][id]["teams"].add(team)
 		else:
-			finalObj["homeRuns"][id] = homeRuns
+			finalObj["homeRuns"][id] = {
+				"val": homeRuns,
+				"teams": {team}
+			}
 
 	if triples > 0:
 		if id in finalObj["triples"]:
-			finalObj["triples"][id] += triples
+			finalObj["triples"][id]["val"] += triples
+			finalObj["triples"][id]["teams"].add(team)
 		else:
-			finalObj["triples"][id] = triples
+			finalObj["triples"][id] = {
+				"val": triples,
+				"teams": {team}
+			}
 
 def get_field(boxscore, field):
 	for item in boxscore["gameBoxInfo"]:
@@ -115,9 +134,9 @@ def process_final(finalObj, games, boxscores):
 	print("SUMMARY:\n--------------------------------------\n")
 	print(f'Total players seen: {len(finalObj["players"])}')
 	process_stat(finalObj, boxscores, "players", "Most seen players: ", get_player_name)
-	print(f'\nYou\'ve seen {len(finalObj["homeRuns"])} players hit {sum(finalObj["homeRuns"].values())} home runs')
+	print(f'\nYou\'ve seen {len(finalObj["homeRuns"])} players hit {sum(player["val"] for player in finalObj["homeRuns"].values())} home runs')
 	process_stat(finalObj, boxscores, "homeRuns", "Biggest power hitters: ", get_player_name)
-	print(f'\nYou\'ve seen {len(finalObj["triples"])} players hit {sum(finalObj["triples"].values())} triples')
+	print(f'\nYou\'ve seen {len(finalObj["triples"])} players hit {sum(player["val"] for player in finalObj["triples"].values())} triples')
 	process_stat(finalObj, boxscores, "triples", "Fastest around the basepaths: ", get_player_name)
 
 	print(f'\nYou\'ve seen {games} games over the years!')
@@ -129,29 +148,30 @@ def process_final(finalObj, games, boxscores):
 
 def process_stat(finalObj, boxscores, stat, label, process_item, most=True):
 	top = sorted(finalObj[stat].items(), key=get_val, reverse=most)
-	final_freq = top[4][1] if len(top) >= 5 else (0 if most else float("inf"))
+	final_freq = get_val(top[4]) if len(top) >= 5 else (0 if most else float("inf"))
 	print(label)
 	for item in top:
-		if (most and item[1] < final_freq) or (not most and item[1] > final_freq):
+		if (most and get_val(item) < final_freq) or (not most and get_val(item) > final_freq):
 			break
 		process_item(item, stat == "gameTimes", boxscores)
 
 def get_val(item):
-	return item[1]
+	return item[1]["val"]
 
 def get_player_name(player, _, __):
 	playerObj = statsapi.player_stat_data(player[0])
-	print(f"{playerObj['first_name']} {playerObj['last_name']}: {player[1]}")
+	team_print = ", ".join(player[1]['teams'])
+	print(f"{playerObj['first_name']} {playerObj['last_name']}: {get_val(player)} ({team_print})")
 
 def get_game_info(game, isTime, boxscores):
 	boxscore = get_boxscore(game[0], boxscores)
 	dateString = boxscore["gameBoxInfo"][-1]["label"]
 	away = boxscore["teamInfo"]["away"]["abbreviation"]
 	home = boxscore["teamInfo"]["home"]["abbreviation"]
-	value = game[1]
+	value = get_val(game)
 	if isTime:
-		hour = int(game[1]/60)
-		minute = game[1] - 60 * hour
+		hour = int(value/60)
+		minute = value - 60 * hour
 		value = f"{hour}:{'%02d' % minute}"
 	print(f"{dateString} {away} vs. {home}: {value}")
 
