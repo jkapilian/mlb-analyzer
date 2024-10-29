@@ -29,16 +29,16 @@ class Analysis:
 		boxscore = cacheManager.get_boxscore(gameId)
 		for player in boxscore["home"]["players"]:
 			playerObj = boxscore["home"]["players"][player]
-			self.process_player(playerObj, year)
+			self.process_player(playerObj, year, boxscore)
 		for player in boxscore["away"]["players"]:
 			playerObj = boxscore["away"]["players"][player]
-			self.process_player(playerObj, year)
+			self.process_player(playerObj, year, boxscore)
 
 		self.process_game(boxscore, gameId, otherGameId, cacheManager, year)
 
-	def process_player(self, playerObj, year):
+	def process_player(self, playerObj, year, boxscore):
 		id = playerObj["person"]["id"]
-		team = constants.teamCodeReverseLookup[playerObj["parentTeamId"]] if "parentTeamId" in playerObj else "Unknown"
+		team = constants.teamCodeReverseLookup[playerObj["parentTeamId"]] if "parentTeamId" in playerObj else self.get_player_team(id, boxscore)
 		played = playerObj["stats"]["batting"] != {} or playerObj["stats"]["pitching"]
 		homeRuns = playerObj["stats"]["batting"]["homeRuns"] if "homeRuns" in playerObj["stats"]["batting"] else 0
 		triples = playerObj["stats"]["batting"]["triples"] if "triples" in playerObj["stats"]["batting"] else 0
@@ -55,6 +55,13 @@ class Analysis:
 			self.add_into_obj("triples", id, "val", triples, False, year)
 			self.add_into_obj("triples", id, "teams", team, True, year)
 
+	def get_player_team(self, id, boxscore):
+		for team in ["home", "away"]:
+			for position in ["batters", "pitchers", "bench", "bullpen"]:
+				if id in boxscore[team][position]:
+					return constants.teamCodeReverseLookup[boxscore[team]["team"]["id"]]
+		raise Exception(f"Couldn't find team for player {id}")
+	
 	def process_game(self, boxscore, gameId, otherGameId, cacheManager, year):
 		try:
 			self.add_into_obj("attendance", gameId, "val", int(self.get_field(boxscore, "Att").replace(",", "")), False, year)
@@ -130,7 +137,7 @@ class Analysis:
 
 		for item in objects:
 			year = item["year"]
-			print(f"SUMMARY: {year}\n--------------------------------------\n")
+			print(f"SUMMARY: {year if year else ''}\n--------------------------------------\n")
 			print(f'Total players seen: {len(item["obj"]["players"])}')
 			self.process_stat(cacheManager, "players", "Most seen players: ", self.get_player_name, year)
 			print(f'\nYou\'ve seen {len(item["obj"]["homeRuns"])} players hit {sum(player["val"] for player in item["obj"]["homeRuns"].values())} home runs')
