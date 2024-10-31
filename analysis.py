@@ -29,16 +29,17 @@ class Analysis:
 		boxscore = cacheManager.get_boxscore(gameId)
 		for player in boxscore["home"]["players"]:
 			playerObj = boxscore["home"]["players"][player]
-			self.process_player(playerObj, year, boxscore)
+			team = constants.teamCodeReverseLookup[boxscore["home"]["team"]["id"]]
+			self.process_player(playerObj, year, boxscore, team)
 		for player in boxscore["away"]["players"]:
 			playerObj = boxscore["away"]["players"][player]
-			self.process_player(playerObj, year, boxscore)
+			team = constants.teamCodeReverseLookup[boxscore["away"]["team"]["id"]]
+			self.process_player(playerObj, year, boxscore, team)
 
 		self.process_game(boxscore, gameId, otherGameId, cacheManager, year)
 
-	def process_player(self, playerObj, year, boxscore):
+	def process_player(self, playerObj, year, boxscore, team):
 		id = playerObj["person"]["id"]
-		team = constants.teamCodeReverseLookup[playerObj["parentTeamId"]] if "parentTeamId" in playerObj else self.get_player_team(id, boxscore)
 		played = playerObj["stats"]["batting"] != {} or playerObj["stats"]["pitching"]
 		homeRuns = playerObj["stats"]["batting"]["homeRuns"] if "homeRuns" in playerObj["stats"]["batting"] else 0
 		triples = playerObj["stats"]["batting"]["triples"] if "triples" in playerObj["stats"]["batting"] else 0
@@ -54,13 +55,6 @@ class Analysis:
 		if triples > 0:
 			self.add_into_obj("triples", id, "val", triples, False, year)
 			self.add_into_obj("triples", id, "teams", team, True, year)
-
-	def get_player_team(self, id, boxscore):
-		for team in ["home", "away"]:
-			for position in ["batters", "pitchers", "bench", "bullpen"]:
-				if id in boxscore[team][position]:
-					return constants.teamCodeReverseLookup[boxscore[team]["team"]["id"]]
-		raise Exception(f"Couldn't find team for player {id}")
 	
 	def process_game(self, boxscore, gameId, otherGameId, cacheManager, year):
 		try:
