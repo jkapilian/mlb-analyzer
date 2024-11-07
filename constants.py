@@ -63,3 +63,49 @@ teamCodeReverseLookup = {
 	147: "NYY",
 	158: "MIL"
 }
+
+allStats = {
+	"players": {
+		"label": "Most seen players: ",
+		"type": "player"
+	},
+	"homeRuns": {
+		"label": "Biggest power hitters: ",
+		"type": "player"
+	},
+	"triples": {
+		"label": "Fastest around the basepaths: ",
+		"type": "player"
+	},
+	"attendance": {
+		"label": "Most attended games: ",
+		"leastLabel": "Least attended games: ",
+		"type": "game"
+	},
+	"gameTimes": {
+		"label": "Longest games attended: ",
+		"leastLabel": "Shortest games attended: ",
+		"type": "game"
+	},
+	"gameTimes9Innings": {
+		"label": "Longest 9-inning games attended: ",
+		"leastLabel": "Shortest 9-inning games attended: ",
+		"type": "game"
+	},
+	"extraInnings": {
+		"label": "Longest extra inning games (innings): ",
+		"type": "game"
+	},
+	"shortGames": {
+		"leastLabel": "Shortest games (innings): ",
+		"type": "game"
+	},
+	"venues": {
+		"label": "Most attended stadiums: ",
+		"type": "venue"
+	},
+	"teams": {
+		"label": "Most seen teams: ",
+		"type": "team"
+	}
+}

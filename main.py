@@ -2,6 +2,7 @@ import argparse
 import csv
 import cache_manager
 import analysis
+import constants
 
 def build_analysis(args):
 	cacheManager = cache_manager.CacheManager(args.input)
@@ -19,7 +20,7 @@ def build_analysis(args):
 			except Exception as e:
 				raise Exception(f"Error adding game {row}: {e}")
 		try:
-			analysisManager.process_final(games, cacheManager)
+			analysisManager.process_final(games, cacheManager, args.stats)
 			cacheManager.export_cache(args.output)
 		except Exception as e:
 			raise Exception(f"Error printing summary: {e}")
@@ -30,5 +31,6 @@ if __name__ == "__main__":
 	parser.add_argument('-i', '--input', help="CSV of previously analyzed boxscores")
 	parser.add_argument('-o', '--output', help="CSV of analyzed boxscores")
 	parser.add_argument('-y', '--year', nargs='+', default=[], help="Years Highlight")
+	parser.add_argument('-s', '--stats', nargs='+', default=constants.allStats.keys(), help="Stats to Display")
 	args = parser.parse_args()
 	build_analysis(args)

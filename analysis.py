@@ -118,7 +118,14 @@ class Analysis:
 				return item["value"][:-1]
 		return ""
 
-	def process_final(self, games, cacheManager):
+	def process_final(self, games, cacheManager, stats):
+		statMapping = {
+			"player": self.get_player_name,
+			"game": self.get_game_info,
+			"venue": self.get_venue_info,
+			"team": self.get_team_info
+		}
+
 		objects = [{
 			"year": None,
 			"obj": self.finalObj
@@ -132,25 +139,25 @@ class Analysis:
 		for item in objects:
 			year = item["year"]
 			print(f"SUMMARY: {year if year else ''}\n--------------------------------------\n")
-			print(f'Total players seen: {len(item["obj"]["players"])}')
-			self.process_stat(cacheManager, "players", "Most seen players: ", self.get_player_name, year)
-			print(f'\nYou\'ve seen {len(item["obj"]["homeRuns"])} players hit {sum(player["val"] for player in item["obj"]["homeRuns"].values())} home runs')
-			self.process_stat(cacheManager, "homeRuns", "Biggest power hitters: ", self.get_player_name, year)
-			print(f'\nYou\'ve seen {len(item["obj"]["triples"])} players hit {sum(player["val"] for player in item["obj"]["triples"].values())} triples')
-			self.process_stat(cacheManager, "triples", "Fastest around the basepaths: ", self.get_player_name, year)
-
 			gamesStr = f"\nYou saw {int(sum(team['val'] for team in item['obj']['teams'].values())/2)} games in {year}!" if year else f'\nYou\'ve seen {games} games over the years!'
 			print(gamesStr)
-			self.process_stat(cacheManager, "attendance", "Most attended games: ", self.get_game_info, year)
-			self.process_stat(cacheManager, "attendance", "Least attended games: ", self.get_game_info, year, False)
-			self.process_stat(cacheManager, "gameTimes", "Longest games attended: ", self.get_game_info, year)
-			self.process_stat(cacheManager, "gameTimes", "Shortest games attended: ", self.get_game_info, year, False)
-			self.process_stat(cacheManager, "gameTimes9Innings", "Longest 9-inning games attended: ", self.get_game_info, year)
-			self.process_stat(cacheManager, "gameTimes9Innings", "Shortest 9-inning games attended: ", self.get_game_info, year, False)
-			self.process_stat(cacheManager, "extraInnings", "Longest extra inning games (innings): ", self.get_game_info, year)
-			self.process_stat(cacheManager, "shortGames", "Shortest games (innings): ", self.get_game_info, year, False)
-			self.process_stat(cacheManager, "venues", "Most attended stadiums: ", self.get_venue_info, year)
-			self.process_stat(cacheManager, "teams", "Most seen teams: ", self.get_team_info, year)
+
+			for stat in stats:
+				statInfo = constants.allStats[stat]
+
+				if statInfo["type"] == "player":
+					count = len(item["obj"][stat])
+					countStr = f'You\'ve seen {count} players'
+					total = sum(player["val"] for player in item["obj"][stat].values())
+					totalStr = "" if stat == "players" else (f' hit {total} {"home runs" if stat == "homeRuns" else stat}')
+					print(countStr + totalStr)
+
+				if "label" in statInfo:
+					self.process_stat(cacheManager, stat, statInfo["label"], statMapping[statInfo["type"]], year)
+				if "leastLabel" in statInfo:
+					self.process_stat(cacheManager, stat, statInfo["leastLabel"], statMapping[statInfo["type"]], year, True)
+
+				print("\n")
 
 	def process_stat(self, cacheManager, stat, label, process_item, year, most=True):
 		obj = self.years[year] if year else self.finalObj
