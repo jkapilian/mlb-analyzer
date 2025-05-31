@@ -118,7 +118,7 @@ class Analysis:
 				return item["value"][:-1]
 		return ""
 
-	def process_final(self, games, cacheManager, stats):
+	def process_final(self, games, cacheManager, stats, num_of_items):
 		statMapping = {
 			"player": self.get_player_name,
 			"game": self.get_game_info,
@@ -153,16 +153,16 @@ class Analysis:
 					print(countStr + totalStr)
 
 				if "label" in statInfo:
-					self.process_stat(cacheManager, stat, statInfo["label"], statMapping[statInfo["type"]], year)
+					self.process_stat(cacheManager, stat, statInfo["label"], statMapping[statInfo["type"]], year, num_of_items)
 				if "leastLabel" in statInfo:
-					self.process_stat(cacheManager, stat, statInfo["leastLabel"], statMapping[statInfo["type"]], year, True)
+					self.process_stat(cacheManager, stat, statInfo["leastLabel"], statMapping[statInfo["type"]], year, num_of_items, False)
 
 				print("\n")
 
-	def process_stat(self, cacheManager, stat, label, process_item, year, most=True):
+	def process_stat(self, cacheManager, stat, label, process_item, year, num_of_items, most=True):
 		obj = self.years[year] if year else self.finalObj
 		top = sorted(obj[stat].items(), key=self.get_val, reverse=most)
-		final_freq = self.get_val(top[4]) if len(top) >= 5 else (0 if most else float("inf"))
+		final_freq = self.get_val(top[num_of_items - 1]) if len(top) >= num_of_items else (0 if most else float("inf"))
 		print(label)
 		for item in top:
 			if (most and self.get_val(item) < final_freq) or (not most and self.get_val(item) > final_freq):
