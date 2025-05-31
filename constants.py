@@ -67,15 +67,23 @@ teamCodeReverseLookup = {
 allStats = {
 	"players": {
 		"label": "Most seen players: ",
-		"type": "player"
+		"type": "player",
+		"aggregateString": "You've seen {count} players"
+	},
+	"startingPitchers": {
+		"label": "Most seen starting pitchers: ",
+		"type": "player",
+		"aggregateString": "You've seen {count} starting pitchers"
 	},
 	"homeRuns": {
 		"label": "Biggest power hitters: ",
-		"type": "player"
+		"type": "player",
+		"aggregateString": "You've seen {count} players hit {total} home runs"
 	},
 	"triples": {
 		"label": "Fastest around the basepaths: ",
-		"type": "player"
+		"type": "player",
+		"aggregateString": "You've seen {count} players hit {total} triples"
 	},
 	"attendance": {
 		"label": "Most attended games: ",

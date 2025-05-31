@@ -4,6 +4,7 @@ import copy
 class Analysis:
 	finalObj = {
 		"players": {},
+		"startingPitchers": {},
 		"homeRuns": {},
 		"triples": {},
 		"attendance": {},
@@ -27,16 +28,16 @@ class Analysis:
 
 	def add_game(self, gameId, otherGameId, cacheManager, year):
 		boxscore = cacheManager.get_boxscore(gameId)
+		homeTeam = constants.teamCodeReverseLookup[boxscore["home"]["team"]["id"]]
+		awayTeam = constants.teamCodeReverseLookup[boxscore["away"]["team"]["id"]]
 		for player in boxscore["home"]["players"]:
 			playerObj = boxscore["home"]["players"][player]
-			team = constants.teamCodeReverseLookup[boxscore["home"]["team"]["id"]]
-			self.process_player(playerObj, year, boxscore, team)
+			self.process_player(playerObj, year, boxscore, homeTeam)
 		for player in boxscore["away"]["players"]:
 			playerObj = boxscore["away"]["players"][player]
-			team = constants.teamCodeReverseLookup[boxscore["away"]["team"]["id"]]
-			self.process_player(playerObj, year, boxscore, team)
+			self.process_player(playerObj, year, boxscore, awayTeam)
 
-		self.process_game(boxscore, gameId, otherGameId, cacheManager, year)
+		self.process_game(boxscore, gameId, otherGameId, cacheManager, year, homeTeam, awayTeam)
 
 	def process_player(self, playerObj, year, boxscore, team):
 		id = playerObj["person"]["id"]
@@ -56,7 +57,12 @@ class Analysis:
 			self.add_into_obj("triples", id, "val", triples, False, year)
 			self.add_into_obj("triples", id, "teams", team, True, year)
 	
-	def process_game(self, boxscore, gameId, otherGameId, cacheManager, year):
+	def process_game(self, boxscore, gameId, otherGameId, cacheManager, year, homeTeam, awayTeam):
+		self.add_into_obj("startingPitchers", boxscore["homePitchers"][1]["personId"], "val", 1, False, year)
+		self.add_into_obj("startingPitchers", boxscore["homePitchers"][1]["personId"], "teams", homeTeam, True, year)
+		self.add_into_obj("startingPitchers", boxscore["awayPitchers"][1]["personId"], "val", 1, False, year)
+		self.add_into_obj("startingPitchers", boxscore["awayPitchers"][1]["personId"], "teams", awayTeam, True, year)
+
 		try:
 			self.add_into_obj("attendance", gameId, "val", int(self.get_field(boxscore, "Att").replace(",", "")), False, year)
 		except:
@@ -147,10 +153,8 @@ class Analysis:
 
 				if statInfo["type"] == "player":
 					count = len(item["obj"][stat])
-					countStr = f'You\'ve seen {count} players'
 					total = sum(player["val"] for player in item["obj"][stat].values())
-					totalStr = "" if stat == "players" else (f' hit {total} {"home runs" if stat == "homeRuns" else stat}')
-					print(countStr + totalStr)
+					print(statInfo["aggregateString"].format(count=count, total=total))
 
 				if "label" in statInfo:
 					self.process_stat(cacheManager, stat, statInfo["label"], statMapping[statInfo["type"]], year, num_of_items)
